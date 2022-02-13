@@ -1,5 +1,7 @@
-import { createSignal } from 'solid-js';
-import { onCleanup, onMount, mergeProps } from 'solid-js';
+import { onCleanup, onMount, mergeProps, createSignal } from 'solid-js';
+import babelParser from '@babel/parser';
+
+console.log(babelParser);
 
 function createDragOffset(el, accessor) {
   function mousemove(e) {
@@ -70,11 +72,6 @@ function InputSlider(props) {
           type="text"
           onClick={() => inputRef.select()}
           onInput={(e) => setValue(+e.target.value)}
-          // onInput={(e) =>
-          //   mergedProps.onInput(
-          //     bound(e.target.value, mergedProps.min, mergedProps.max)
-          //   )
-          // }
           ref={inputRef}
           value={merged.value}
         />
@@ -98,15 +95,21 @@ function App() {
   const [code, setCode] = createSignal('<div>hi</div>');
 
   return (
-    <div class="p-5">
-      <NumberInputSlider
-        label="H"
-        value={fontSize()}
-        onInput={(v) => setFontSize(v)}
-      />
-
-      <div class="border p-4 mt-8" innerHTML={code()}></div>
-      <pre class="text-xs mt-2">{code()}</pre>
+    <div class="flex h-full">
+      <div class="p-4 flex-1">
+        <div class="border p-3" innerHTML={code()}></div>
+        <pre class="text-xs mt-2">{code()}</pre>
+      </div>
+      
+      <div class="h-full border-l">
+        <div class="p-4">
+          <NumberInputSlider
+            label="H"
+            value={fontSize()}
+            onInput={(v) => setFontSize(v)}
+          />
+        </div>
+      </div>
     </div>
   );
 }
