@@ -9,7 +9,7 @@ import {
   Suspense,
 } from "solid-js";
 import { parse } from "@babel/parser";
-import { transform } from "@babel/standalone";
+import { transform, transformFromAst } from "@babel/standalone";
 import { createEffect } from "solid-js";
 import { render } from "solid-js/web";
 
@@ -17,6 +17,7 @@ import { render } from "solid-js/web";
 // import babelPresetSolid from "babel-preset-solid";
 
 const SOLID_VERSION = "1.3.6";
+const CDN_URL = "https://cdn.skypack.dev";
 
 let cachedPreset;
 
@@ -55,7 +56,16 @@ async function loadBabel(solidVersion = SOLID_VERSION) {
       ...opts.babel,
     });
 
-  return babel;
+  const babelTransformFromAst = (ast, code, opts = { babel: {}, solid: {} }) =>
+    transformFromAst(ast, code, {
+      presets: [
+        [solid, { ...opts.solid }],
+        ["typescript", { onlyRemoveTypeImports: true }],
+      ],
+      ...opts.babel,
+    });
+
+  return { babel, transformFromAst: babelTransformFromAst };
 }
 
 function createDragOffset(el, accessor) {
@@ -148,45 +158,71 @@ function NumberInputSlider(props) {
   );
 }
 
+function Renderer(props) {
+  console.log(props.ast);
+  return <>123</>;
+}
+
 function Editor(props) {
   const [fontSize, setFontSize] = createSignal(10);
   const code = createMemo(
     () =>
-      `import { render } from 'solid-js/web'; function MyComponent() { return <div style="font-size: ${fontSize()}">Hello World</div> } export default function Preview() { return <MyComponent /> } render(<Preview />, document.getElementById('preview-area')); console.log(document.getElementById('preview-area'));`
+      `import { render } from 'solid-js/web'; function MyComponent() { return <div style='font-size: ${fontSize()}px'>Hello World</div> } export default function Preview() { return <MyComponent /> } render(Preview, document.getElementById('preview-area'));`
   );
   const ast = createMemo(() =>
     parse(code(), { plugins: ["jsx"], sourceType: "module" })
   );
+
+  createEffect(() => {
+    // const transformedFromAst = transformFromAst(ast(), code(), {});
+    // console.log()
+  });
+
   const compiled = createMemo(() => {
-    const result = props.babel(code(), {
+    const result = props.babel(ast(), code(), {
       solid: {},
       babel: { filename: "test.tsx" },
     });
-    return result.code;
+    const resultCode = result.code.replaceAll(
+      "solid-js",
+      `${CDN_URL}/solid-js@${SOLID_VERSION}`
+    );
+    return resultCode;
   });
 
   createEffect(() => {
     // render(, previewRef)
+    previewRef.innerHTML = "";
+    const script = document.createElement("script");
+    script.innerHTML = compiled();
+    script.type = "module";
+    script.id = "foo-script";
+    document.body.appendChild(script);
   });
 
   let previewRef;
 
   return (
     <div class="flex h-full max-w-screen overflow-hidden">
-      <div class="p-4 grow overflow-hidden min-w-0">
-        <div class="border p-3" ref={previewRef} id="preview-area">
+      <div class="p-4 grow overflow-hidden w-full flex flex-col">
+        <div className="border grow p-3 overflow-auto min-w-0 min-h-0">
+          <Renderer ast={ast()} />
+        </div>
+        <div
+          class="border grow p-3 overflow-auto min-w-0 min-h-0"
+          ref={previewRef}
+          id="preview-area"
+        >
           {/* {createRoot(() =>)} */}
         </div>
-        <script innerHTML={compiled()}></script>
-        <script>console.log('heyo')</script>
         {/* <div class="border p-3" innerHTML={code()}></div> */}
 
-        <div className="text-xs mt-4 space-y-3">
+        {/* <div className="text-xs mt-4 space-y-3">
           <p>input</p>
           <pre class="mt-2 p-3 border overflow-scroll">{code()}</pre>
           <p>output</p>
           <pre class="mt-2 p-3 border overflow-scroll">{compiled()}</pre>
-        </div>
+        </div> */}
       </div>
 
       <div class="h-full border-l max-w-[240px] w-full">
@@ -213,9 +249,11 @@ function App() {
   const [babel] = createResource(() => loadBabel());
 
   return (
-    <Show when={babel()} fallback="loading...">
-      <Editor babel={babel()} />
-    </Show>
+    <>
+      <Show when={babel()} fallback="loading...">
+        <Editor babel={babel().transformFromAst} />
+      </Show>
+    </>
   );
 }
 
